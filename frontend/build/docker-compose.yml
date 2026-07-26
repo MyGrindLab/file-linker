@@ -1,0 +1,18 @@
+services:
+  file-linker-frontend:
+    container_name: file_linker_frontend
+    image: linker_frontend
+    build:
+      context: ../
+      dockerfile: build/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "13000:3000"
+    restart: on-failure
+    networks:
+      - linker
+
+networks:
+  linker:
+    external: true

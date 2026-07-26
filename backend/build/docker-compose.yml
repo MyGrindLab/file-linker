@@ -1,0 +1,29 @@
+services:
+  file-linker:
+    container_name: file_linker
+    image: linker
+    build:
+      context: ../
+      dockerfile: build/Dockerfile
+      target: dev
+    environment:
+      - PYTHONPATH=/app
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
+    volumes:
+      - "../app/src:/app/src"
+      - prometheus_multiproc:/tmp/prometheus_multiproc
+    env_file:
+      - .env
+    ports:
+      - "10000:8080"
+    restart: on-failure
+    networks:
+      - linker
+
+networks:
+  linker:
+    external: true
+
+volumes:
+  mongo_data:
+  prometheus_multiproc:

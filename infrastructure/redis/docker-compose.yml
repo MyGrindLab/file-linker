@@ -1,0 +1,11 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: on-failure
+    networks:
+      - linker
+
+networks:
+  linker:
+    external: true
