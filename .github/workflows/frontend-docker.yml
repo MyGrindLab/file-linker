@@ -34,7 +34,7 @@ jobs:
       with:
         context: frontend
         file: frontend/build/Dockerfile.prod
-        tags: ghcr.io/${{ github.repository_owner }}/file-linker-frontend:latest
+        tags: ghcr.io/filelinker/file-linker-frontend:latest
         push: True
         cache-from: type=gha,scope=${{ github.ref }}-frontend
         cache-to: type=gha,mode=max,scope=${{ github.ref }}-frontend
