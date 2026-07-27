@@ -44,6 +44,16 @@ class TooManyRequests(BaseHTTPException):
     detail: str = "Too Many Requests"
 
 
+class NotFound(BaseHTTPException):
+    status_code: int = status.HTTP_404_NOT_FOUND
+    detail: str = "Not Found"
+
+
+class Gone(BaseHTTPException):
+    status_code: int = status.HTTP_410_GONE
+    detail: str = "Gone"
+
+
 class FileNotFound(Exception):
     pass
 

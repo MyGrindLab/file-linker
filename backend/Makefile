@@ -36,3 +36,6 @@ ruff: base_build
 
 mypy: base_build
 	docker run -it $(BASE_TAG) bash -c "mypy ."
+
+test: base_build
+	docker run -it $(BASE_TAG) bash -c "pytest"

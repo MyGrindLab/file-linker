@@ -30,12 +30,16 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pre-commit>=4.2.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "mongomock-motor>=0.0.35",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", ]
-addopts = "-p no:warnings --tb=short --cov=/app --cov-report=html"
-console_output_stype = "count"
+addopts = "-p no:warnings --tb=short --cov=app --cov-report=html"
+console_output_style = "count"
 minversion = "7.2.0"
 pythonpath = ". app"
 filterwarnings = "ignore"

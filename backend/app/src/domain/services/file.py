@@ -1,3 +1,4 @@
+import logging
 import mimetypes
 import uuid as uuid_lib
 from datetime import UTC, datetime, timedelta
@@ -9,15 +10,19 @@ from src.core.exceptions import (
     BadRequest,
     FileTooLarge,
     Forbidden,
+    Gone,
     Locked,
+    NotFound,
     Unauthorized,
 )
 from src.core.settings import settings
-from src.domain.schemas.file import FileData
+from src.domain.schemas.file import FileData, FileInfo, FileList
 from src.domain.schemas.link import Link
 from src.domain.schemas.user import User
 from src.domain.services.password import crypt_password, verify_password
 from src.infrastructure.storage.client import AsyncStorageClient
+
+logger = logging.getLogger(__name__)
 
 _B62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
@@ -40,6 +45,30 @@ class FileService:
     def __init__(self) -> None:
         self._storage = AsyncStorageClient()
 
+    def _validate_extension(self, filename: str) -> str:
+        extension = filename.split(".")[-1].lower()
+        if extension not in self.IMAGES + self.VIDEOS + self.PDF + self.TEXT:
+            raise BadRequest(detail="Invalid Format")
+        return extension
+
+    def _tier_limits(self, user: User | None) -> tuple[int, int | None]:
+        if user is None:
+            return settings.ANON_MAX_SIZE_BYTES, settings.ANON_TTL_DAYS
+        if user.is_paid:
+            return settings.PAID_MAX_SIZE_BYTES, None  # permanent
+        return settings.REGISTERED_MAX_SIZE_BYTES, settings.REGISTERED_TTL_DAYS
+
+    async def _owned(
+        self,
+        short_id: str,
+        db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+        user: User,
+    ) -> dict:
+        record = await db.files.find_one({"short_id": short_id, "user_id": user.id})
+        if record is None or record.get("is_active", True) is False:
+            raise NotFound(detail="File not found")
+        return record
+
     async def upload(
         self,
         file: UploadFile,
@@ -55,19 +84,9 @@ class FileService:
         if password is not None and user is None:
             raise Unauthorized()
 
-        extension = file.filename.split(".")[-1].lower()
-        if extension not in self.IMAGES + self.VIDEOS + self.PDF + self.TEXT:
-            raise BadRequest(detail="Invalid Format")
+        extension = self._validate_extension(file.filename)
 
-        if user is None:
-            max_size = settings.ANON_MAX_SIZE_BYTES
-            ttl_days: int | None = settings.ANON_TTL_DAYS
-        elif user.is_paid:
-            max_size = settings.PAID_MAX_SIZE_BYTES
-            ttl_days = None  # permanent
-        else:
-            max_size = settings.REGISTERED_MAX_SIZE_BYTES
-            ttl_days = settings.REGISTERED_TTL_DAYS
+        max_size, ttl_days = self._tier_limits(user)
 
         content = await file.read()
         if len(content) > max_size:
@@ -109,6 +128,9 @@ class FileService:
             {"short_id": short_id}
         ) or await db.files.find_one({"filename": short_id})
 
+        if record and record.get("is_active", True) is False:
+            raise Gone(detail="Link is no longer active")
+
         if record and record.get("password_hash"):
             if password is None:
                 raise Locked(detail="Password required")
@@ -124,4 +146,110 @@ class FileService:
             else storage_key,
             content=data.content,
             content_type=data.content_type,
+        )
+
+    async def list_files(
+        self,
+        db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+        user: User,
+        limit: int,
+        offset: int,
+    ) -> FileList:
+        query = {"user_id": user.id, "is_active": {"$ne": False}}
+
+        cursor = db.files.find(query).sort("uploaded_at", -1).skip(offset).limit(limit)
+        items = [FileInfo.from_record(record) async for record in cursor]
+        total = await db.files.count_documents(query)
+
+        return FileList(items=items, total=total)
+
+    async def replace_content(
+        self,
+        short_id: str,
+        file: UploadFile,
+        db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+        user: User,
+    ) -> FileInfo:
+        record = await self._owned(short_id, db, user)
+
+        if not file.filename:
+            raise BadRequest(detail="No filename")
+
+        new_extension = self._validate_extension(file.filename)
+
+        max_size, _ = self._tier_limits(user)
+
+        content = await file.read()
+        if len(content) > max_size:
+            raise FileTooLarge()
+
+        old_key = record["filename"]
+        uid = old_key.rsplit(".", 1)[0]
+        new_key = f"{uid}.{new_extension}"
+        content_type = (
+            mimetypes.guess_type(file.filename)[0] or "application/octet-stream"
+        )
+
+        await self._storage.upload(new_key, content, content_type)
+
+        updated_fields = {
+            "filename": new_key,
+            "original_filename": file.filename,
+            "size_bytes": len(content),
+            "updated_at": datetime.now(UTC),
+        }
+
+        await db.files.update_one({"_id": record["_id"]}, {"$set": updated_fields})
+
+        if new_key != old_key:
+            try:
+                await self._storage.delete(old_key)
+            except Exception:
+                logger.warning("Failed to delete %s from S3", old_key)
+
+        return FileInfo.from_record({**record, **updated_fields})
+
+    async def set_password(
+        self,
+        short_id: str,
+        password: str,
+        db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+        user: User,
+    ) -> None:
+        record = await self._owned(short_id, db, user)
+
+        await db.files.update_one(
+            {"_id": record["_id"]},
+            {"$set": {"password_hash": crypt_password(password)}},
+        )
+
+    async def remove_password(
+        self,
+        short_id: str,
+        db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+        user: User,
+    ) -> None:
+        record = await self._owned(short_id, db, user)
+
+        await db.files.update_one(
+            {"_id": record["_id"]},
+            {"$set": {"password_hash": None}},
+        )
+
+    async def delete(
+        self,
+        short_id: str,
+        db: AsyncIOMotorDatabase,  # type: ignore[type-arg]
+        user: User,
+    ) -> None:
+        record = await self._owned(short_id, db, user)
+
+        try:
+            await self._storage.delete(record["filename"])
+        except Exception:
+            logger.warning("Failed to delete %s from S3", record["filename"])
+
+        await db.files.update_one(
+            {"_id": record["_id"]},
+            {"$set": {"is_active": False, "deactivated_at": datetime.now(UTC)}},
         )
