@@ -35,7 +35,7 @@ jobs:
         context: backend
         file: backend/build/Dockerfile
         target: production
-        tags: ghcr.io/${{ github.repository_owner }}/file-linker:latest
+        tags: ghcr.io/filelinker/file-linker-backend:latest
         push: True
         cache-from: type=gha,scope=${{ github.ref }}-backend
         cache-to: type=gha,mode=max,scope=${{ github.ref }}-backend
