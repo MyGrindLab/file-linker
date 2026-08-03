@@ -249,10 +249,14 @@ const InfoLabel = styled.span`
   flex-shrink: 0;
 `;
 
+/* The label column is a fixed 120px, so at 320px an unbroken value (an email
+   address has no break opportunity) would otherwise push the page sideways. */
 const InfoValue = styled.span`
   font-size: 14px;
   color: #1b2e25;
   font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
 `;
 
 const ProBadge = styled.span`

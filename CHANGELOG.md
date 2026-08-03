@@ -8,6 +8,7 @@ Every `/feature` and `/fix` run adds **one line** under `[Unreleased]` before th
 
 ### Added
 <!-- - New capability, one line, with the PR and Jira key: `Health endpoint at /healthz ([#12](...), PROJ-123)` -->
+- File management section at `/files` for viewing, replacing, password-protecting and deleting your uploaded files ([#3](https://github.com/FileLinker/file-linker-monorepo/pull/3), KAN-2)
 
 ### Changed
 

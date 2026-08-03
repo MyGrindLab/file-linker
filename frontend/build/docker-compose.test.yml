@@ -1,0 +1,31 @@
+# Frontend verification runner — ONE-SHOT, not a server.
+#
+# Standalone on purpose: `make test-frontend` / `make lint-frontend` must work
+# on a clean checkout with nothing else running, so this file has no external
+# `linker` network, no ports and no env_file (build/.env is not in git).
+#
+# Driven through the root Makefile:
+#   make test-frontend   -> npm run test   (vitest run)
+#   make lint-frontend   -> npm run lint   (eslint .)
+#
+# Raw equivalent, from the repo root:
+#   docker compose -p linker-frontend-test -f frontend/build/docker-compose.test.yml \
+#     run --rm --build frontend-test npm run test
+
+services:
+  frontend-test:
+    image: linker_frontend_test
+    build:
+      context: ../
+      dockerfile: build/Dockerfile
+      target: test
+    working_dir: /app
+    environment:
+      CI: "true"
+    volumes:
+      # Live source, so editing a test does not need an image rebuild...
+      - ../:/app
+      # ...but node_modules stays the one installed in the image from the
+      # lockfile. The host has no node_modules and never gets one.
+      - /app/node_modules
+    command: ["npm", "run", "test"]
