@@ -9,6 +9,7 @@ import RegisterPage from './pages/RegisterPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
 import UpgradePage from './pages/UpgradePage';
 import SettingsPage from './pages/SettingsPage';
+import FilesPage from './pages/FilesPage';
 import './styles.css';
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/upgrade" element={<UpgradePage />} />
           <Route path="/pricing" element={<UpgradePage />} />
+          <Route path="/files" element={<FilesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </Router>

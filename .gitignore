@@ -1,3 +1,10 @@
 .DS_Store
 *.log
 .claude/settings.local.json
+
+# Never installed on the host — but bind-mounting a container's node_modules
+# leaves an empty stub directory behind. Keep it out of git everywhere.
+node_modules/
+
+.env
+!.env.example

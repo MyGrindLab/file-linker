@@ -2,3 +2,12 @@
 .env
 
 .DS_store
+
+# build output
+dist
+coverage
+
+# tool caches
+.vite
+.eslintcache
+*.log

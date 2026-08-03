@@ -1,1 +1,22 @@
+# The build context is frontend/ (see build/docker-compose*.yml).
+# Keep it small and keep host-only artefacts out of the image.
+
 build
+node_modules
+dist
+coverage
+
+.git
+.gitignore
+.dockerignore
+
+.env
+.env.*
+
+.DS_Store
+*.log
+npm-debug.log*
+
+CLAUDE.md
+README.md
+Makefile
