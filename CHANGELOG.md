@@ -7,6 +7,8 @@ Every `/feature` and `/fix` run adds **one line** under `[Unreleased]` before th
 ## [Unreleased]
 
 ### Added
+- Kubernetes deployment on a 2-node cluster, reconciled from Git by Argo CD
+- Merging to `master` now builds an immutable image and deploys it automatically
 <!-- - New capability, one line, with the PR and Jira key: `Health endpoint at /healthz ([#12](...), PROJ-123)` -->
 
 ### Changed

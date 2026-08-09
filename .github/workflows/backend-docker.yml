@@ -8,13 +8,27 @@ on:
       - '.github/workflows/backend-docker.yml'
   workflow_dispatch:
 
+concurrency:
+  # Two merges in quick succession would otherwise race to write the tag file,
+  # and the loser's commit would silently win. Serialise instead.
+  group: backend-image-deploy
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build and Push image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha: ${{ steps.vars.outputs.sha }}
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+
+    - id: vars
+      run: echo "sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
@@ -22,6 +36,7 @@ jobs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+        
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -35,7 +50,58 @@ jobs:
         context: backend
         file: backend/build/Dockerfile
         target: production
-        tags: ghcr.io/filelinker/file-linker-backend:latest
-        push: True
+        # The immutable SHA tag is what actually gets deployed. `latest` is kept
+        # only as a human convenience — Argo can never detect a change from it,
+        # because the tag string never moves.
+        tags: |
+          ghcr.io/filelinker/file-linker-backend:${{ github.sha }}
+          ghcr.io/filelinker/file-linker-backend:latest
+        push: true
         cache-from: type=gha,scope=${{ github.ref }}-backend
         cache-to: type=gha,mode=max,scope=${{ github.ref }}-backend
+
+  deploy:
+    name: Write image tag to GitOps repo
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: FileLinker/file-linker-gitops
+          # Write-scoped deploy key for this one repo. Deliberately NOT a PAT:
+          # a PAT would carry the actor's access to every other repo too.
+          ssh-key: ${{ secrets.GITOPS_DEPLOY_KEY }}
+          ref: main
+
+      - name: Update image tag
+        run: |
+          set -euo pipefail
+          # Preinstalled on ubuntu-latest, but pin a fallback so a runner image
+          # change fails at install time rather than mid-deploy.
+          command -v yq >/dev/null || {
+            sudo curl -fsSL -o /usr/local/bin/yq \
+              https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+          }
+          FILE=envs/prod/backend-values.yaml
+          OLD=$(yq '.image.tag' "$FILE")
+          yq -i '.image.tag = "${{ needs.build.outputs.sha }}"' "$FILE"
+          echo "backend image tag: $OLD -> ${{ needs.build.outputs.sha }}"
+          git diff --stat
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          git config user.name  "file-linker-ci[bot]"
+          git config user.email "ci@filelinker.invalid"
+          if git diff --quiet; then
+            echo "tag unchanged - nothing to deploy"; exit 0
+          fi
+          git add envs/prod/backend-values.yaml
+          git commit -m "backend: deploy ${{ needs.build.outputs.sha }}
+
+          Automated image tag update from ${{ github.repository }}@${{ github.sha }}.
+          Roll back by reverting this commit — Argo will sync the previous image."
+          # Retry once: a concurrent frontend deploy may have moved main underneath us.
+          git push origin main || { git pull --rebase origin main && git push origin main; }
