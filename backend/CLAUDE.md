@@ -12,7 +12,7 @@ Clean architecture with 4 layers:
 
 **File upload flow:** POST `/file/upload/` → optional auth → validate extension + size limit → upload to S3 → store metadata in MongoDB (with TTL) → return shareable link
 
-**File retrieval flow:** GET `/file/{filename}/` → fetch from S3 → return `StreamingResponse`
+**File retrieval flow:** GET `/file/{short_id}/` → fetch from S3 → return `StreamingResponse`
 
 **TTL cleanup:** APScheduler job runs every `CLEANUP_INTERVAL_HOURS`, finds expired records in MongoDB, deletes from S3 and MongoDB.
 
@@ -87,7 +87,7 @@ OAuth redirect URIs are auto-constructed as `{DOMAIN}/api/auth/{provider}/callba
 | File | Role |
 |---|---|
 | `app/main.py` | App setup, lifespan (DB init, scheduler), CORS, routers |
-| `app/src/api/file.py` | Upload (`POST /file/upload/`) and download (`GET /file/{filename}/`) |
+| `app/src/api/file.py` | Upload, list/manage own files, and download (`GET /file/{short_id}/`) |
 | `app/src/api/auth.py` | Register, login, Google/GitHub OAuth |
 | `app/src/api/payment.py` | Stripe checkout (`POST /payment/checkout/`) and webhook |
 | `app/src/core/security.py` | JWT encode/decode, `get_optional_user` / `get_current_user` deps |
@@ -107,7 +107,11 @@ OAuth redirect URIs are auto-constructed as `{DOMAIN}/api/auth/{provider}/callba
 
 ### `files`
 ```
-{ _id, filename, user_id, size_bytes, expires_at, uploaded_at }
+{
+  _id, filename, short_id, original_filename, user_id, size_bytes,
+  password_hash, expires_at, uploaded_at,
+  is_active, deactivated_at, updated_at
+}
 ```
 
 ## API Endpoints
@@ -115,7 +119,12 @@ OAuth redirect URIs are auto-constructed as `{DOMAIN}/api/auth/{provider}/callba
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | POST | `/file/upload/` | Optional | Upload file (tier limits apply) |
-| GET | `/file/{filename}/` | None | Download file |
+| GET | `/file/my/` | Required | List the current user's files (paginated) |
+| PUT | `/file/{short_id}/content/` | Required | Replace a file's content (keeps `short_id`) |
+| PUT | `/file/{short_id}/password/` | Required | Set/update the file's password |
+| DELETE | `/file/{short_id}/password/` | Required | Remove the file's password |
+| DELETE | `/file/{short_id}/` | Required | Soft-delete a file (deactivate + remove from storage) |
+| GET | `/file/{short_id}/` | None | Download file |
 | POST | `/auth/register/` | None | Email/password registration |
 | POST | `/auth/login/` | None | Email/password login → JWT |
 | GET | `/auth/google/` | None | Redirect to Google OAuth |

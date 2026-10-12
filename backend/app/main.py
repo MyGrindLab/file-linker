@@ -33,6 +33,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     db = get_db()
     await db.files.create_index("short_id", unique=True, sparse=True)
+    await db.files.create_index([("user_id", 1), ("uploaded_at", -1)])
 
     redis = RedisWrapper()
 
