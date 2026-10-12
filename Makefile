@@ -14,8 +14,19 @@
 #
 # To fill in: define the variables below, then replace each $(TODO) with the
 # real command.
+#
+# Filled in so far (KAN-41): lint-frontend, lint-backend, test-frontend,
+# test-backend — so `make check` (= lint + test) is real. Each builds a one-off
+# image and runs the check in a throwaway container (no compose, no TTY).
+# Every other target is still $(TODO). Full CI gate: KAN-46.
 
 TODO = @echo "Makefile: target '$@' is not filled in yet — see the header." && exit 1
+
+## --- check images (rebuilt per run; the Docker layer cache keeps it fast) ----
+BACKEND_TEST_IMAGE   := file-linker-backend:test
+FRONTEND_CHECK_IMAGE := file-linker-frontend:check
+BACKEND_TEST_BUILD   := docker build -f backend/build/Dockerfile --target test -t $(BACKEND_TEST_IMAGE) backend
+FRONTEND_CHECK_BUILD := docker build -f frontend/build/Dockerfile -t $(FRONTEND_CHECK_IMAGE) frontend
 
 ## --- to define once infrastructure/ is scaffolded -------------------------------
 # COMPOSE       := <compose invocation against the file(s) in infrastructure/>
@@ -76,22 +87,25 @@ sh-backend: ## Shell into the backend container
 
 test: test-frontend test-backend ## Run every test suite
 
-test-frontend: ## Run frontend tests in its container
-	$(TODO)
+test-frontend: ## Run frontend tests (none yet, KAN-47; no-op)
+	@echo "no frontend tests yet (KAN-47)"
 
-test-backend: ## Run backend tests in its container
-	$(TODO)
+test-backend: ## Run backend tests (pytest) in its container
+	$(BACKEND_TEST_BUILD)
+	docker run --rm $(BACKEND_TEST_IMAGE) .venv/bin/pytest
 
 e2e: ## Bring the stack up for browser E2E (driven via the Playwright MCP)
 	$(TODO)
 
 lint: lint-frontend lint-backend ## Lint every component
 
-lint-frontend:
-	$(TODO)
+lint-frontend: ## Interim frontend check: production build (real lint: KAN-46)
+	$(FRONTEND_CHECK_BUILD)
+	docker run --rm $(FRONTEND_CHECK_IMAGE) npm run build
 
-lint-backend:
-	$(TODO)
+lint-backend: ## Lint + typecheck the backend (ruff, mypy) in its container
+	$(BACKEND_TEST_BUILD)
+	docker run --rm $(BACKEND_TEST_IMAGE) sh -c ".venv/bin/ruff check . && .venv/bin/mypy ."
 
 fmt: ## Format all code in place
 	$(TODO)

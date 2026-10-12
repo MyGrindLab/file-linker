@@ -1,4 +1,3 @@
-import mimetypes
 import uuid as uuid_lib
 from datetime import UTC, datetime, timedelta
 
@@ -36,6 +35,25 @@ class FileService:
     VIDEOS: list[str] = ["mp4", "webm", "ogg", "mov"]
     PDF: list[str] = ["pdf"]
     TEXT: list[str] = ["html", "txt", "log", "csv", "json", "xml"]
+
+    _SUBTYPE_OVERRIDES: dict[str, str] = {"jpg": "jpeg", "mov": "quicktime"}
+    _TEXT_CONTENT_TYPE: str = "text/plain; charset=utf-8"
+    _FALLBACK_CONTENT_TYPE: str = "application/octet-stream"
+
+    @classmethod
+    def safe_content_type(cls, extension: str) -> tuple[str, bool]:
+        """Map an extension to (content_type, as_attachment) via a fixed allowlist."""
+        ext = extension.lower().lstrip(".")
+        subtype = cls._SUBTYPE_OVERRIDES.get(ext, ext)
+        if ext in cls.IMAGES:
+            return f"image/{subtype}", False
+        if ext in cls.VIDEOS:
+            return f"video/{subtype}", False
+        if ext in cls.PDF:
+            return "application/pdf", False
+        if ext in cls.TEXT:
+            return cls._TEXT_CONTENT_TYPE, False
+        return cls._FALLBACK_CONTENT_TYPE, True
 
     def __init__(self) -> None:
         self._storage = AsyncStorageClient()
@@ -76,9 +94,7 @@ class FileService:
         uid = uuid_lib.uuid4()
         filename = f"{uid}.{extension}"
         short_id = _uuid_to_base62(uid)
-        content_type = (
-            mimetypes.guess_type(file.filename)[0] or "application/octet-stream"
-        )
+        content_type, _ = self.safe_content_type(extension)
 
         await self._storage.upload(filename, content, content_type)
 
@@ -117,11 +133,14 @@ class FileService:
 
         storage_key = record["filename"] if record else short_id
         data = await self._storage.retrieve(storage_key)
+        extension = storage_key.rsplit(".", 1)[-1] if "." in storage_key else ""
+        content_type, as_attachment = self.safe_content_type(extension)
 
         return FileData(
             filename=record.get("original_filename", storage_key)
             if record
             else storage_key,
             content=data.content,
-            content_type=data.content_type,
+            content_type=content_type,
+            as_attachment=as_attachment,
         )

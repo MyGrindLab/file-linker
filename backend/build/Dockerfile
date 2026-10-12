@@ -1,15 +1,25 @@
 FROM python:3.13-alpine AS base
 
-COPY /app pyproject.toml uv.lock /app/
 WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:0.6.12 /uv /uvx /bin/
 
-RUN uv sync --frozen --no-cache
+# Dependencies first so source edits don't invalidate this layer.
+# --no-dev keeps the test tooling (dev group) out of the production image.
+COPY pyproject.toml uv.lock /app/
+RUN uv sync --frozen --no-cache --no-dev
+
+COPY /app /app/
 
 EXPOSE 8080
 
 ENV PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc
+
+# Test / lint (used by `make lint-backend` and `make test-backend`)
+FROM base AS test
+
+RUN uv sync --frozen --no-cache
+COPY tests /app/tests
 
 # Development
 FROM base AS dev

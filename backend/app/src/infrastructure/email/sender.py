@@ -5,6 +5,7 @@ from uuid import uuid4
 from fastapi import BackgroundTasks
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from jinja2 import Environment, FileSystemLoader, Template, TemplateNotFound
+from pydantic import NameEmail, TypeAdapter
 
 from src.core.exceptions import BadRequest, EmailNotSend
 from src.core.settings import settings
@@ -16,6 +17,8 @@ from src.infrastructure.redis.client import RedisClient, RedisKeyValueException
 logger = logging.getLogger("EMAIL_SENDER")
 
 env = Environment(loader=FileSystemLoader("/app/src/templates"))
+
+_recipients_adapter: TypeAdapter[list[NameEmail]] = TypeAdapter(list[NameEmail])
 
 
 async def _get_full_message_text(message: EmailMessage) -> str:
@@ -32,7 +35,7 @@ async def _email_schema(message: EmailMessage) -> MessageSchema:
 
     return MessageSchema(
         subject=message.title,
-        recipients=message.to,
+        recipients=_recipients_adapter.validate_python(message.to),
         body=body,
         subtype=MessageType.html,
         # attachments=[
