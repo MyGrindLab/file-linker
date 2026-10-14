@@ -37,8 +37,11 @@ async def view_file(
 
     response = StreamingResponse(iter([data.content]), media_type=data.content_type)
     encoded_filename = quote(data.filename, safe="")
+    disposition = "attachment" if data.as_attachment else "inline"
     response.headers["Content-Disposition"] = (
-        f"inline; filename*=UTF-8''{encoded_filename}"
+        f"{disposition}; filename*=UTF-8''{encoded_filename}"
     )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Content-Security-Policy"] = "sandbox"
     response.headers["Access-Control-Expose-Headers"] = "Content-Disposition"
     return response

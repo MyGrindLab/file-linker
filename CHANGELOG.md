@@ -14,4 +14,5 @@ Every `/feature` and `/fix` run adds **one line** under `[Unreleased]` before th
 ### Changed
 
 ### Fixed
+- Uploaded HTML and XML files can no longer run scripts on the app's site; shared files are served as plain text with browser protections ([#6](https://github.com/MyGrindLab/file-linker/pull/6), KAN-41)
 <!-- - The bug as the user experienced it, not the patch: `Login no longer crashes on an empty email ([#13](...), PROJ-124)` -->

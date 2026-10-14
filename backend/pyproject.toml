@@ -30,14 +30,17 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pre-commit>=4.2.0",
+    "pytest>=8.4.0",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", ]
-addopts = "-p no:warnings --tb=short --cov=/app --cov-report=html"
-console_output_stype = "count"
+addopts = "-p no:warnings --tb=short --cov=src --cov-report=term"
+console_output_style = "count"
 minversion = "7.2.0"
-pythonpath = ". app"
+pythonpath = ["."]
 filterwarnings = "ignore"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
