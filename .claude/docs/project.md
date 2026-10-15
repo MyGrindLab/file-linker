@@ -42,18 +42,21 @@ Project JQL — every skill scopes searches with this, never the bare project:
 ## Production
 | key | value | notes |
 |-----|-------|-------|
-| Prod URL | `<https://app.example.com>` | the only non-local origin `/prod-check` may browse |
-| Extra allowed origins | `<none \| https://api.example.com>` | e.g. the API the frontend calls |
-| Test account | `<none \| in .env.claude as PROD_TEST_USER / PROD_TEST_PASSWORD>` | a dedicated low-privilege account — never a real user's |
-| Kube context / namespace | `<none \| prod-ctx / app>` | optional, for read-only `kubectl logs` during `/prod-check` |
+| Prod URL | `https://flnk.cc` | the only non-local origin `/prod-check` may browse |
+| Extra allowed origins | `none` | the SPA calls `/api` on the same origin |
+| Test account | `none` | logged-out checks only until one is added to `.env.claude` |
+| Kube context / namespace | `none` | |
 
 ### Critical journeys
 What `/prod-check` walks every run, in priority order. Read-only steps only — mark anything that writes data `(writes — skip)`.
-1. `<Landing page loads, nav links resolve>`
-2. `<Log in with the test account → dashboard>`
-3. `<...>`
+1. Landing page `/` loads, nav and footer links resolve
+2. `/pricing` renders the plans
+3. `/login` and `/register` render; empty-field validation shows without submitting `(submit — skip)`
+4. `/view/<nonexistent-id>` shows a clean not-found state
 
 ### Do not touch
 Pages, buttons, or flows `/prod-check` must never trigger, even read-only-looking ones.
-- `<Checkout / payment>`
-- `<Anything that sends email or notifications>`
+- File upload (writes)
+- Register / login submit, "Sign in with Google" (creates accounts or sessions)
+- Upgrade / checkout / payment buttons on `/pricing` and `/upgrade`
+- Anything that sends email (password reset, verification)
